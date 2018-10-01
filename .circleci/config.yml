@@ -1,0 +1,12 @@
+version: 2
+jobs:
+  build:
+    working_directory: /go/src/github.com/testcontainers/testcontainer-go
+    docker:
+      - image: golang:1.11
+    steps:
+      - checkout
+      - run:
+          name: Execute test
+          command: go test ./...
+          no_output_timeout: 100s
