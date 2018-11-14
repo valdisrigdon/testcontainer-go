@@ -2,7 +2,10 @@ package testcontainer
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
+	"log"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -75,6 +78,22 @@ func (c *Container) GetIPAddress(ctx context.Context) (string, error) {
 	return inspect.NetworkSettings.IPAddress, nil
 }
 
+// GetMappedPort returns PortBindings for the running Container.
+func (c *Container) GetMappedPort(ctx context.Context, port int) (int, error) {
+	var binding int
+	inspect, err := inspectContainer(ctx, c)
+	if err != nil {
+		return binding, err
+	}
+	for key, val := range inspect.NetworkSettings.Ports {
+		if key.Int() == port {
+			log.Printf("Port %d -> %s", port, val[0].HostPort)
+			return strconv.Atoi(val[0].HostPort)
+		}
+	}
+	return binding, fmt.Errorf("Unable to find mapped port: %d", port)
+}
+
 // RunContainer takes a RequestContainer as input and it runs a container via the docker sdk
 func RunContainer(ctx context.Context, containerImage string, input RequestContainer) (*Container, error) {
 	cli, err := client.NewEnvClient()
@@ -82,10 +101,11 @@ func RunContainer(ctx context.Context, containerImage string, input RequestConta
 		return nil, err
 	}
 
-	exposedPorts := nat.PortSet{}
-	for _, p := range input.ExportedPort {
-		exposedPorts[nat.Port(p)] = struct{}{}
+	exposedPorts, portBindings, err := nat.ParsePortSpecs(input.ExportedPort)
+	if err != nil {
+		return nil, err
 	}
+	log.Printf("portBindings: %s", portBindings)
 
 	env := []string{}
 	for envKey, envVar := range input.Env {
@@ -118,7 +138,11 @@ func RunContainer(ctx context.Context, containerImage string, input RequestConta
 		return nil, err
 	}
 
-	resp, err := cli.ContainerCreate(ctx, dockerInput, nil, nil, "")
+	hostConfig := &container.HostConfig{
+		PortBindings: portBindings,
+	}
+
+	resp, err := cli.ContainerCreate(ctx, dockerInput, hostConfig, nil, "")
 	if err != nil {
 		return nil, err
 	}

@@ -59,22 +59,23 @@ func TestTwoContainersExposingTheSamePort(t *testing.T) {
 	}
 }
 
-func TestContainerCreation(t *testing.T) {
+func TestPortMappings(t *testing.T) {
 	ctx := context.Background()
 	nginxC, err := RunContainer(ctx, "nginx", RequestContainer{
 		ExportedPort: []string{
-			"80/tcp",
+			":80",
 		},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer nginxC.Terminate(ctx, t)
-	ip, err := nginxC.GetIPAddress(ctx)
+	ip := "localhost"
+	port, err := nginxC.GetMappedPort(ctx, 80)
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp, err := http.Get(fmt.Sprintf("http://%s", ip))
+	resp, err := http.Get(fmt.Sprintf("http://%s:%d", ip, port))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +168,6 @@ func TestContainerRespondsWithHttp404ForNonExistingPage(t *testing.T) {
 		t.Errorf("Expected status code %d. Got %d.", http.StatusNotFound, resp.StatusCode)
 	}
 }
-
 
 func TestContainerCreationTimesOutWithHttp(t *testing.T) {
 	ctx := context.Background()
